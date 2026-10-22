@@ -1,93 +1,73 @@
-#ifndef EVENT_H
-#define EVENT_H
+#ifndef EVENTLIST_H
+#define EVENTLIST_H
 
+#include <iostream>
 #include <string>
 using namespace std;
 
-class Event
+struct EventNode
 {
-private:
     int eventId;
     string eventName;
-    string category;
-    string date;
-    string venue;
-    int fee;
-    int totalSeats;
-    int availableSeats;
+    EventNode *next;
+};
+
+class EventList
+{
+private:
+    EventNode *head;
 
 public:
-
-    Event(int id, string name, string eventCategory,
-          string eventDate, string eventVenue,
-          int eventFee, int seats)
+    EventList()
     {
-        eventId = id;
-        eventName = name;
-        category = eventCategory;
-        date = eventDate;
-        venue = eventVenue;
-        fee = eventFee;
-        totalSeats = seats;
-        availableSeats = seats;
+        head = nullptr;
     }
 
-    int getEventId()
+    void addEvent(int id, string name)
     {
-        return eventId;
-    }
+        EventNode *newNode = new EventNode;
 
-    string getEventName()
-    {
-        return eventName;
-    }
+        newNode->eventId = id;
+        newNode->eventName = name;
+        newNode->next = nullptr;
 
-    string getCategory()
-    {
-        return category;
-    }
-
-    string getDate()
-    {
-        return date;
-    }
-
-    string getVenue()
-    {
-        return venue;
-    }
-
-    int getFee()
-    {
-        return fee;
-    }
-
-    int getTotalSeats()
-    {
-        return totalSeats;
-    }
-
-    int getAvailableSeats()
-    {
-        return availableSeats;
-    }
-
-    bool registerStudent()
-    {
-        if (availableSeats > 0)
+        if (head == nullptr)
         {
-            availableSeats--;
-            return true;
+            head = newNode;
+            return;
         }
 
-        return false;
+        EventNode *temp = head;
+
+        while (temp->next != nullptr)
+        {
+            temp = temp->next;
+        }
+
+        temp->next = newNode;
     }
 
-    void cancelRegistration()
+    void displayEvents()
     {
-        if (availableSeats < totalSeats)
+        EventNode *temp = head;
+
+        while (temp != nullptr)
         {
-            availableSeats++;
+            cout << "Event ID: " << temp->eventId << endl;
+            cout << "Event Name: " << temp->eventName << endl;
+            cout << "-------------------" << endl;
+
+            temp = temp->next;
+        }
+    }
+
+    ~EventList()
+    {
+        while (head != nullptr)
+        {
+            EventNode *temp = head;
+            head = head->next;
+            delete temp;
         }
     }
 };

@@ -1,73 +1,93 @@
-#ifndef EVENTLIST_H
-#define EVENTLIST_H
+#ifndef EVENT_H
+#define EVENT_H
 
-#include <iostream>
 #include <string>
 using namespace std;
 
-struct EventNode
-{
-    int eventId;
-    string eventName;
-    EventNode *next;
-};
-
-class EventList
+class Event
 {
 private:
-    EventNode *head;
+    int eventId;
+    string eventName;
+    string category;
+    string date;
+    string venue;
+    int fee;
+    int totalSeats;
+    int availableSeats;
 
 public:
-    EventList()
+
+    Event(int id, string name, string eventCategory,
+          string eventDate, string eventVenue,
+          int eventFee, int seats)
     {
-        head = nullptr;
+        eventId = id;
+        eventName = name;
+        category = eventCategory;
+        date = eventDate;
+        venue = eventVenue;
+        fee = eventFee;
+        totalSeats = seats;
+        availableSeats = seats;
     }
 
-    void addEvent(int id, string name)
+    int getEventId()
     {
-        EventNode *newNode = new EventNode;
-
-        newNode->eventId = id;
-        newNode->eventName = name;
-        newNode->next = nullptr;
-
-        if (head == nullptr)
-        {
-            head = newNode;
-            return;
-        }
-
-        EventNode *temp = head;
-
-        while (temp->next != nullptr)
-        {
-            temp = temp->next;
-        }
-
-        temp->next = newNode;
+        return eventId;
     }
 
-    void displayEvents()
+    string getEventName()
     {
-        EventNode *temp = head;
-
-        while (temp != nullptr)
-        {
-            cout << "Event ID: " << temp->eventId << endl;
-            cout << "Event Name: " << temp->eventName << endl;
-            cout << "-------------------" << endl;
-
-            temp = temp->next;
-        }
+        return eventName;
     }
 
-    ~EventList()
+    string getCategory()
     {
-        while (head != nullptr)
+        return category;
+    }
+
+    string getDate()
+    {
+        return date;
+    }
+
+    string getVenue()
+    {
+        return venue;
+    }
+
+    int getFee()
+    {
+        return fee;
+    }
+
+    int getTotalSeats()
+    {
+        return totalSeats;
+    }
+
+    int getAvailableSeats()
+    {
+        return availableSeats;
+    }
+
+    bool registerStudent()
+    {
+        if (availableSeats > 0)
         {
-            EventNode *temp = head;
-            head = head->next;
-            delete temp;
+            availableSeats--;
+            return true;
+        }
+
+        return false;
+    }
+
+    void cancelRegistration()
+    {
+        if (availableSeats < totalSeats)
+        {
+            availableSeats++;
         }
     }
 };

@@ -1,715 +1,1004 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <string>
 #include <algorithm>
 #include <cctype>
-#include "classes/student.h"
-#include "classes/event.h"
-
+#include <limits>
 using namespace std;
+
+#include "classes/student.h"
+#include "dsa/EventQueue.h"
+
+
+class Event
+{
+private:
+    int eventId;
+    string eventName;
+    string category;
+    string date;
+    string venue;
+    int totalSeats;
+    int availableSeats;
+
+public:
+    Event(int id, string name, string cat, string d,
+          string v, int total, int available)
+    {
+        eventId = id;
+        eventName = name;
+        category = cat;
+        date = d;
+        venue = v;
+        totalSeats = total;
+        availableSeats = available;
+    }
+
+    int getEventId() const { return eventId; }
+    string getEventName() const { return eventName; }
+    string getCategory() const { return category; }
+    string getDate() const { return date; }
+    string getVenue() const { return venue; }
+    int getTotalSeats() const { return totalSeats; }
+    int getAvailableSeats() const { return availableSeats; }
+
+    void setAvailableSeats(int seats)
+    {
+        if (seats >= 0 && seats <= totalSeats)
+            availableSeats = seats;
+    }
+
+    void registerStudent()
+    {
+        if (availableSeats > 0)
+            availableSeats--;
+    }
+
+    void cancelStudent()
+    {
+        if (availableSeats < totalSeats)
+            availableSeats++;
+    }
+
+    void display() const
+    {
+        cout << "\nEvent ID: " << eventId;
+        cout << "\nEvent Name: " << eventName;
+        cout << "\nCategory: " << category;
+        cout << "\nDate: " << date;
+        cout << "\nVenue: " << venue;
+        cout << "\nTotal Seats: " << totalSeats;
+        cout << "\nAvailable Seats: " << availableSeats << endl;
+    }
+};
+
+vector<Student> students;
+vector<Event> eventList;
+vector<pair<string, int>> allRegistrations;
+vector<EventQueue> waitingQueues;
 
 vector<string> split(string line)
 {
     vector<string> parts;
-    string delimiter = "|||";
+    const string delimiter = "|||";
+    size_t pos;
 
-    size_t position;
-
-    while ((position = line.find(delimiter)) != string::npos)
+    while ((pos = line.find(delimiter)) != string::npos)
     {
-        parts.push_back(line.substr(0, position));
-        line.erase(0, position + delimiter.length());
+        parts.push_back(line.substr(0, pos));
+        line.erase(0, pos + delimiter.length());
     }
 
     parts.push_back(line);
-
     return parts;
 }
 
-string toLower(string text)
+string toLower(string value)
 {
-    for (int i = 0; i < text.length(); i++)
+    for (char& ch : value)
     {
-        text[i] = tolower(text[i]);
+        ch = static_cast<char>(
+            tolower(static_cast<unsigned char>(ch))
+        );
     }
 
-    return text;
+    return value;
 }
 
-int main()
+void saveStudents()
 {
-    vector<Student> students;
-    vector<Event> events;
-    vector<int> registeredEvents;
+    ofstream file("src/data/students.txt");
 
-    events.push_back(
-        Event(1, "Tech Fest 2026", "Technical",
-              "15 October 2026", "Main Auditorium", 200, 100)
-    );
+    if (!file)
+    {
+        cout << "Could not save students.txt.\n";
+        return;
+    }
 
-    events.push_back(
-        Event(2, "Code Hackathon", "Coding",
-              "20 October 2026", "Lab 3", 100, 50)
-    );
+    for (const auto& st : students)
+    {
+        file << st.getRollNumber() << "|||"
+             << st.getName() << "|||"
+             << st.getSemester() << "|||"
+             << st.getPassword() << "|||"
+             << (st.isFirstLogin() ? "1" : "0") << '\n';
+    }
+}
 
-    events.push_back(
-        Event(3, "Basketball Tournament", "Sports",
-              "25 October 2026", "College Ground", 50, 80)
-    );
-
-    events.push_back(
-        Event(4, "Cultural Night", "Cultural",
-              "30 October 2026", "Open Air Theatre", 150, 200)
-    );
-
+void loadStudents()
+{
     ifstream file("src/data/students.txt");
 
     if (!file)
     {
-        cout << "Could not open student database.\n";
-        return 1;
+        cout << "Could not open src/data/students.txt.\n";
+        cout << "Run the program from the project root folder.\n";
+        return;
     }
 
     string line;
 
     while (getline(file, line))
     {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+
+        if (line.empty())
+            continue;
+
         vector<string> data = split(line);
 
         if (data.size() != 5)
-            continue;
-
-        string rollNumber = data[0];
-        string name = data[1];
-        int semester = stoi(data[2]);
-        string password = data[3];
-        bool firstLogin = (data[4] == "1");
-
-        students.push_back(
-            Student(rollNumber, name, semester,
-                    password, firstLogin)
-        );
-    }
-
-    file.close();
-
-    ifstream registrationFile("src/data/registrations.txt");
-
-    vector<pair<string, int>> allRegistrations;
-
-    if (registrationFile)
-    {
-        while (getline(registrationFile, line))
         {
-            vector<string> data = split(line);
-
-            if (data.size() != 2)
-                continue;
-
-            string rollNumber = data[0];
-            int eventId = stoi(data[1]);
-
-            allRegistrations.push_back(
-                {rollNumber, eventId}
-            );
+            cout << "Skipping invalid student record.\n";
+            continue;
         }
 
-        registrationFile.close();
+        try
+        {
+            students.emplace_back(
+                data[0],
+                data[1],
+                stoi(data[2]),
+                data[3],
+                data[4] == "1"
+            );
+        }
+        catch (...)
+        {
+            cout << "Skipping invalid student record.\n";
+        }
+    }
+}
+
+void loadRegistrations()
+{
+    ifstream file("src/data/registrations.txt");
+
+    if (!file)
+        return;
+
+    string line;
+
+    while (getline(file, line))
+    {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+
+        if (line.empty())
+            continue;
+
+        vector<string> data = split(line);
+
+        if (data.size() != 2)
+            continue;
+
+        try
+        {
+            allRegistrations.push_back({
+                data[0], stoi(data[1])
+            });
+        }
+        catch (...)
+        {
+            cout << "Skipping invalid registration record.\n";
+        }
+    }
+}
+
+void saveRegistrations()
+{
+    ofstream file("src/data/registrations.txt");
+
+    if (!file)
+    {
+        cout << "Could not save registrations.txt.\n";
+        return;
     }
 
-    for (int i = 0; i < allRegistrations.size(); i++)
+    for (const auto& record : allRegistrations)
     {
-        for (int j = 0; j < events.size(); j++)
+        file << record.first << "|||"
+             << record.second << '\n';
+    }
+}
+
+void saveWaitingQueues()
+{
+    ofstream file("src/data/waiting_lists.txt");
+
+    if (!file)
+    {
+        cout << "Could not save waiting_lists.txt.\n";
+        return;
+    }
+
+    for (size_t i = 0;
+         i < eventList.size() && i < waitingQueues.size();
+         ++i)
+    {
+        int eventId = eventList[i].getEventId();
+
+        for (const string& roll : waitingQueues[i].toVector())
+            file << roll << "|||" << eventId << '\n';
+    }
+}
+
+void loadEvents()
+{
+    eventList.clear();
+
+    eventList.emplace_back(
+        1, "Tech Fest 2026", "Technical",
+        "15 October 2026", "Main Auditorium", 200, 200
+    );
+
+    eventList.emplace_back(
+        2, "Code Hackathon", "Coding",
+        "20 October 2026", "Lab 3", 100, 100
+    );
+
+    eventList.emplace_back(
+        3, "Basketball Tournament", "Sports",
+        "25 October 2026", "College Ground", 50, 50
+    );
+
+    eventList.emplace_back(
+        4, "Cultural Night", "Cultural",
+        "30 October 2026", "Open Air Theatre", 150, 150
+    );
+
+    waitingQueues.clear();
+
+    for (size_t i = 0; i < eventList.size(); i++)
+        waitingQueues.emplace_back();
+
+    for (const auto& record : allRegistrations)
+    {
+        for (auto& ev : eventList)
         {
-            if (allRegistrations[i].second ==
-                events[j].getEventId())
+            if (ev.getEventId() == record.second)
             {
-                events[j].registerStudent();
+                ev.registerStudent();
                 break;
             }
         }
     }
+}
 
-    cout << "\n=== COLLEGE EVENT REGISTRATION ===\n";
+bool isRegistered(const string& roll, int eventId);
 
-    string enteredRollNumber;
-    string enteredPassword;
+void loadWaitingQueues()
+{
+    ifstream file("src/data/waiting_lists.txt");
 
-    cout << "\nRoll Number: ";
-    cin >> enteredRollNumber;
+    if (!file)
+        return;
 
-    cout << "Password: ";
-    cin >> enteredPassword;
+    string line;
 
-    int loggedInStudent = -1;
-
-    for (int i = 0; i < students.size(); i++)
+    while (getline(file, line))
     {
-        if (students[i].login(
-                enteredRollNumber,
-                enteredPassword))
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+
+        if (line.empty())
+            continue;
+
+        vector<string> data = split(line);
+
+        if (data.size() != 2)
+            continue;
+
+        try
         {
-            loggedInStudent = i;
+            string roll = data[0];
+            int eventId = stoi(data[1]);
+
+            if (isRegistered(roll, eventId))
+                continue;
+
+            for (size_t i = 0; i < eventList.size(); ++i)
+            {
+                if (eventList[i].getEventId() == eventId)
+                {
+                    waitingQueues[i].enqueue(roll, false);
+                    break;
+                }
+            }
+        }
+        catch (...)
+        {
+            cout << "Skipping invalid waiting-list record.\n";
+        }
+    }
+}
+
+Event* findEvent(int id)
+{
+    for (auto& ev : eventList)
+    {
+        if (ev.getEventId() == id)
+            return &ev;
+    }
+
+    return nullptr;
+}
+
+bool isRegistered(const string& roll, int eventId)
+{
+    for (const auto& record : allRegistrations)
+    {
+        if (record.first == roll &&
+            record.second == eventId)
+            return true;
+    }
+
+    return false;
+}
+
+Student* login()
+{
+    string roll, password;
+
+    cout << "\n========== STUDENT LOGIN ==========\n";
+    cout << "Enter Roll Number: ";
+    cin >> roll;
+
+    cout << "Enter Password: ";
+    cin >> password;
+
+    for (auto& st : students)
+    {
+        if (st.login(roll, password))
+        {
+            cout << "\nLogin successful!\n";
+            return &st;
+        }
+    }
+
+    cout << "\nInvalid roll number or password.\n";
+    return nullptr;
+}
+
+bool adminLogin()
+{
+    string username, password;
+
+    cout << "\n========== ADMIN LOGIN ==========\n";
+    cout << "Enter Admin Username: ";
+    cin >> username;
+
+    cout << "Enter Admin Password: ";
+    cin >> password;
+
+    if (username == "admin" && password == "admin@123")
+    {
+        cout << "\nAdmin login successful!\n";
+        return true;
+    }
+
+    cout << "\nInvalid admin username or password.\n";
+    return false;
+}
+
+void displayAllEvents()
+{
+    cout << "\n========== ALL EVENTS ==========\n";
+
+    for (const auto& ev : eventList)
+        ev.display();
+}
+
+void displayAvailableEvents()
+{
+    cout << "\n========== AVAILABLE EVENTS ==========\n";
+
+    for (const auto& ev : eventList)
+    {
+        cout << "\nEvent ID: " << ev.getEventId()
+             << "\nEvent Name: " << ev.getEventName()
+             << "\nCategory: " << ev.getCategory()
+             << "\nDate: " << ev.getDate()
+             << "\nAvailable Seats: " << ev.getAvailableSeats()
+             << "\nWaiting Students: "
+             << waitingQueues[
+                    static_cast<size_t>(
+                        &ev - eventList.data()
+                    )
+                ].toVector().size()
+             << '\n';
+    }
+}
+
+void searchEvent()
+{
+    string keyword;
+
+    cout << "\nEnter event name or category to search: ";
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    getline(cin, keyword);
+
+    keyword = toLower(keyword);
+    bool found = false;
+
+    for (const auto& ev : eventList)
+    {
+        if (toLower(ev.getEventName()).find(keyword) != string::npos ||
+            toLower(ev.getCategory()).find(keyword) != string::npos)
+        {
+            ev.display();
+            found = true;
+        }
+    }
+
+    if (!found)
+        cout << "No matching event found.\n";
+}
+
+void sortEvents()
+{
+    int choice;
+
+    cout << "\n========== SORT EVENTS ==========\n";
+    cout << "1. Sort by Event Name\n";
+    cout << "2. Sort by Available Seats (Highest First)\n";
+    cout << "Enter your choice: ";
+    cin >> choice;
+
+    if (choice == 1)
+    {
+        sort(eventList.begin(), eventList.end(),
+             [](const Event& a, const Event& b)
+             {
+                 return a.getEventName() < b.getEventName();
+             });
+
+        cout << "\nEvents sorted by name.\n";
+    }
+    else if (choice == 2)
+    {
+        sort(eventList.begin(), eventList.end(),
+             [](const Event& a, const Event& b)
+             {
+                 return a.getAvailableSeats() >
+                        b.getAvailableSeats();
+             });
+
+        cout << "\nEvents sorted by available seats.\n";
+    }
+    else
+    {
+        cout << "Invalid choice.\n";
+        return;
+    }
+
+    displayAllEvents();
+}
+
+void displayStudentRegistrations(const string& roll)
+{
+    cout << "\n========== YOUR REGISTRATIONS ==========\n";
+
+    bool found = false;
+
+    for (const auto& record : allRegistrations)
+    {
+        if (record.first == roll)
+        {
+            Event* ev = findEvent(record.second);
+
+            if (ev != nullptr)
+            {
+                ev->display();
+                found = true;
+            }
+        }
+    }
+
+    if (!found)
+        cout << "You have not registered for any event.\n";
+}
+
+void registerEvent(Student& st)
+{
+    int eventId;
+
+    displayAvailableEvents();
+
+    cout << "\nEnter Event ID to register: ";
+
+    if (!(cin >> eventId))
+    {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Invalid input.\n";
+        return;
+    }
+
+    Event* ev = findEvent(eventId);
+
+    if (ev == nullptr)
+    {
+        cout << "Invalid event ID.\n";
+        return;
+    }
+
+    string roll = st.getRollNumber();
+
+    if (isRegistered(roll, eventId))
+    {
+        cout << "You are already registered for this event.\n";
+        return;
+    }
+
+    size_t queueIndex = 0;
+
+    for (size_t i = 0; i < eventList.size(); ++i)
+    {
+        if (eventList[i].getEventId() == eventId)
+        {
+            queueIndex = i;
             break;
         }
     }
 
-    if (loggedInStudent == -1)
+    EventQueue& queue = waitingQueues[queueIndex];
+
+    if (queue.contains(roll))
     {
-        cout << "\nInvalid Roll Number or Password.\n";
-        return 0;
+        cout << "You are already in this event's waiting list.\n";
+        return;
     }
 
-    Student &student = students[loggedInStudent];
-
-    cout << "\nLogin successful!\n";
-
-    if (student.isFirstLogin())
+    if (ev->getAvailableSeats() > 0 && queue.isEmpty())
     {
-        string name;
-        int semester;
-        string newPassword;
+        ev->registerStudent();
 
-        cout << "\nFirst login setup\n";
+        allRegistrations.push_back({roll, eventId});
 
-        cout << "Enter your name: ";
-        cin.ignore();
-        getline(cin, name);
+        saveRegistrations();
 
-        cout << "Enter your semester: ";
-        cin >> semester;
+        cout << "\nRegistration successful!\n";
+        cout << "Event: " << ev->getEventName() << '\n';
+    }
+    else
+    {
+        cout << "\nNo seat is currently available, or students are already waiting.\n";
+        cout << "Would you like to join the waiting list? (1 = Yes, 0 = No): ";
 
-        cout << "Create a new password: ";
-        cin >> newPassword;
+        int choice;
 
-        student.setName(name);
-        student.setSemester(semester);
-        student.changePassword(newPassword);
-        student.completeFirstLogin();
-
-        ofstream updateFile("src/data/students.txt");
-
-        for (int i = 0; i < students.size(); i++)
+        if (!(cin >> choice))
         {
-            updateFile << students[i].getRollNumber() << "|||"
-                       << students[i].getName() << "|||"
-                       << students[i].getSemester() << "|||"
-                       << students[i].getPassword() << "|||"
-                       << (students[i].isFirstLogin() ? "1" : "0")
-                       << "\n";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input.\n";
+            return;
         }
 
-        updateFile.close();
+        if (choice == 1)
+        {
+            if (queue.enqueue(roll))
+            {
+                saveWaitingQueues();
+                cout << "You have been added to the waiting list.\n";
+            }
+        }
+        else
+        {
+            cout << "Registration cancelled.\n";
+        }
+    }
+}
 
-        cout << "\nProfile created successfully!\n";
+void cancelRegistration(Student& st)
+{
+    int eventId;
+
+    cout << "\nEnter Event ID to cancel registration: ";
+
+    if (!(cin >> eventId))
+    {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Invalid input.\n";
+        return;
     }
 
-    for (int i = 0; i < allRegistrations.size(); i++)
-    {
-        if (allRegistrations[i].first ==
-            student.getRollNumber())
+    string roll = st.getRollNumber();
+
+    auto it = find_if(
+        allRegistrations.begin(),
+        allRegistrations.end(),
+        [&](const pair<string, int>& record)
         {
-            registeredEvents.push_back(
-                allRegistrations[i].second
-            );
+            return record.first == roll &&
+                   record.second == eventId;
+        }
+    );
+
+    if (it == allRegistrations.end())
+    {
+        cout << "You are not registered for this event.\n";
+        return;
+    }
+
+    Event* ev = findEvent(eventId);
+
+    if (ev == nullptr)
+    {
+        cout << "Event not found.\n";
+        return;
+    }
+
+    allRegistrations.erase(it);
+
+    size_t queueIndex = 0;
+
+    for (size_t i = 0; i < eventList.size(); ++i)
+    {
+        if (eventList[i].getEventId() == eventId)
+        {
+            queueIndex = i;
+            break;
         }
     }
 
-    cout << "\n--- Student Profile ---\n";
-    cout << "Name        : "
-         << student.getName() << endl;
+    string nextRoll;
+    EventQueue& queue = waitingQueues[queueIndex];
 
-    cout << "Semester    : "
-         << student.getSemester() << endl;
+    if (queue.dequeue(nextRoll))
+    {
+        allRegistrations.push_back({nextRoll, eventId});
 
-    cout << "Roll Number : "
-         << student.getRollNumber() << endl;
+        cout << "\nRegistration cancelled successfully.\n";
+        cout << "The next student on the waiting list has been registered.\n";
+        cout << "Promoted student roll number: " << nextRoll << '\n';
+    }
+    else
+    {
+        ev->cancelStudent();
+
+        cout << "\nRegistration cancelled successfully.\n";
+        cout << "One seat is now available.\n";
+    }
+
+    saveRegistrations();
+    saveWaitingQueues();
+}
+
+void displayWaitingList()
+{
+    int eventId;
+
+    cout << "\nEnter Event ID to view its waiting list: ";
+
+    if (!(cin >> eventId))
+    {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Invalid input.\n";
+        return;
+    }
+
+    for (size_t i = 0; i < eventList.size(); ++i)
+    {
+        if (eventList[i].getEventId() == eventId)
+        {
+            cout << "\nEvent: " << eventList[i].getEventName() << '\n';
+            waitingQueues[i].displayQueue();
+            return;
+        }
+    }
+
+    cout << "Invalid event ID.\n";
+}
+
+void displayAllStudents()
+{
+    cout << "\n========== ALL STUDENTS ==========\n";
+
+    if (students.empty())
+    {
+        cout << "No student records found.\n";
+        return;
+    }
+
+    for (const auto& st : students)
+    {
+        cout << "\nRoll Number: " << st.getRollNumber()
+             << "\nName: " << st.getName()
+             << "\nSemester: " << st.getSemester()
+             << '\n';
+    }
+}
+
+void displayAllRegistrations()
+{
+    cout << "\n========== ALL REGISTRATIONS ==========\n";
+
+    if (allRegistrations.empty())
+    {
+        cout << "No registrations found.\n";
+        return;
+    }
+
+    for (const auto& record : allRegistrations)
+    {
+        Event* ev = findEvent(record.second);
+
+        cout << "\nStudent Roll Number: " << record.first;
+
+        if (ev != nullptr)
+            cout << "\nEvent: " << ev->getEventName();
+
+        cout << '\n';
+    }
+}
+
+void changeStudentPassword(Student& st)
+{
+    string oldPassword, newPassword, confirmPassword;
+
+    cout << "\nEnter current password: ";
+    cin >> oldPassword;
+
+    if (oldPassword != st.getPassword())
+    {
+        cout << "Incorrect current password.\n";
+        return;
+    }
+
+    cout << "Enter new password: ";
+    cin >> newPassword;
+
+    cout << "Confirm new password: ";
+    cin >> confirmPassword;
+
+    if (newPassword != confirmPassword)
+    {
+        cout << "Passwords do not match.\n";
+        return;
+    }
+
+    if (newPassword.empty())
+    {
+        cout << "Password cannot be empty.\n";
+        return;
+    }
+
+    st.changePassword(newPassword);
+    st.completeFirstLogin();
+
+    saveStudents();
+
+    cout << "Password changed successfully.\n";
+}
+
+void studentMenu(Student& st)
+{
+    int choice;
+
+    do
+    {
+        cout << "\n========== STUDENT MENU ==========\n";
+        cout << "Welcome, " << st.getName() << '\n';
+        cout << "1. View All Events\n";
+        cout << "2. View Available Events\n";
+        cout << "3. Search Events\n";
+        cout << "4. Register for Event\n";
+        cout << "5. Cancel Registration\n";
+        cout << "6. View My Registrations\n";
+        cout << "7. View Waiting List\n";
+        cout << "8. Change Password\n";
+        cout << "0. Logout\n";
+        cout << "Enter your choice: ";
+
+        if (!(cin >> choice))
+        {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please enter a number.\n";
+            continue;
+        }
+
+        switch (choice)
+        {
+            case 1:
+                displayAllEvents();
+                break;
+
+            case 2:
+                displayAvailableEvents();
+                break;
+
+            case 3:
+                searchEvent();
+                break;
+
+            case 4:
+                registerEvent(st);
+                break;
+
+            case 5:
+                cancelRegistration(st);
+                break;
+
+            case 6:
+                displayStudentRegistrations(st.getRollNumber());
+                break;
+
+            case 7:
+                displayWaitingList();
+                break;
+
+            case 8:
+                changeStudentPassword(st);
+                break;
+
+            case 0:
+                cout << "Logging out...\n";
+                break;
+
+            default:
+                cout << "Invalid choice. Try again.\n";
+        }
+
+    } while (choice != 0);
+}
+
+void adminMenu()
+{
+    int choice;
+
+    do
+    {
+        cout << "\n========== ADMIN MENU ==========\n";
+        cout << "1. View All Events\n";
+        cout << "2. View Available Events\n";
+        cout << "3. View All Students\n";
+        cout << "4. View All Registrations\n";
+        cout << "5. View Event Waiting List\n";
+        cout << "6. Save All Data\n";
+        cout << "7. Sort Events\n";
+        cout << "0. Logout\n";
+        cout << "Enter your choice: ";
+
+        if (!(cin >> choice))
+        {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please enter a number.\n";
+            continue;
+        }
+
+        switch (choice)
+        {
+            case 1:
+                displayAllEvents();
+                break;
+
+            case 2:
+                displayAvailableEvents();
+                break;
+
+            case 3:
+                displayAllStudents();
+                break;
+
+            case 4:
+                displayAllRegistrations();
+                break;
+
+            case 5:
+                displayWaitingList();
+                break;
+
+            case 6:
+                saveStudents();
+                saveRegistrations();
+                saveWaitingQueues();
+                cout << "All data saved successfully.\n";
+                break;
+
+            case 7:
+                sortEvents();
+                break;
+
+            case 0:
+                cout << "Admin logging out...\n";
+                break;
+
+            default:
+                cout << "Invalid choice. Try again.\n";
+        }
+
+    } while (choice != 0);
+} 
+
+int main()
+{
+    cout << "========================================\n";
+    cout << "   COLLEGE EVENT REGISTRATION PLATFORM\n";
+    cout << "========================================\n";
+
+    loadStudents();
+    loadRegistrations();
+    loadEvents();
+    loadWaitingQueues();
 
     int choice;
 
     do
     {
-        cout << "\n=== STUDENT MENU ===\n";
-        cout << "1. View All Events\n";
-        cout << "2. Search Events\n";
-        cout << "3. View Event Details\n";
-        cout << "4. Register for Event\n";
-        cout << "5. Cancel Registration\n";
-        cout << "6. My Registrations\n";
-        cout << "7. My Profile\n";
-        cout << "8. Logout\n";
+        cout << "\n========== MAIN MENU ==========\n";
+        cout << "1. Student Login\n";
+        cout << "2. Admin Login\n";
+        cout << "0. Exit\n";
+        cout << "Enter your choice: ";
 
-        cout << "\nEnter choice: ";
-        cin >> choice;
+        if (!(cin >> choice))
+        {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please enter a number.\n";
+            continue;
+        }
 
         switch (choice)
         {
             case 1:
             {
-                cout << "\n=== ALL EVENTS ===\n";
+                Student* loggedInStudent = login();
 
-                for (int i = 0; i < events.size(); i++)
-                {
-                    cout << "\nEvent ID        : "
-                         << events[i].getEventId() << endl;
-
-                    cout << "Event Name      : "
-                         << events[i].getEventName() << endl;
-
-                    cout << "Category        : "
-                         << events[i].getCategory() << endl;
-
-                    cout << "Date            : "
-                         << events[i].getDate() << endl;
-
-                    cout << "Venue           : "
-                         << events[i].getVenue() << endl;
-
-                    cout << "Registration Fee: Rs. "
-                         << events[i].getFee() << endl;
-
-                    cout << "Available Seats : "
-                         << events[i].getAvailableSeats()
-                         << "/"
-                         << events[i].getTotalSeats()
-                         << endl;
-                }
+                if (loggedInStudent != nullptr)
+                    studentMenu(*loggedInStudent);
 
                 break;
             }
 
             case 2:
-            {
-                string searchText;
-
-                cout << "\n=== SEARCH EVENTS ===\n";
-                cout << "Enter event name or category: ";
-
-                cin.ignore();
-                getline(cin, searchText);
-
-                searchText = toLower(searchText);
-
-                bool found = false;
-
-                for (int i = 0; i < events.size(); i++)
-                {
-                    string eventName =
-                        toLower(events[i].getEventName());
-
-                    string category =
-                        toLower(events[i].getCategory());
-
-                    if (eventName.find(searchText) != string::npos ||
-                        category.find(searchText) != string::npos)
-                    {
-                        found = true;
-
-                        cout << "\nEvent ID        : "
-                             << events[i].getEventId() << endl;
-
-                        cout << "Event Name      : "
-                             << events[i].getEventName() << endl;
-
-                        cout << "Category        : "
-                             << events[i].getCategory() << endl;
-
-                        cout << "Date            : "
-                             << events[i].getDate() << endl;
-
-                        cout << "Venue           : "
-                             << events[i].getVenue() << endl;
-
-                        cout << "Registration Fee: Rs. "
-                             << events[i].getFee() << endl;
-
-                        cout << "Available Seats : "
-                             << events[i].getAvailableSeats()
-                             << "/"
-                             << events[i].getTotalSeats()
-                             << endl;
-                    }
-                }
-
-                if (!found)
-                {
-                    cout << "\nNo matching event found.\n";
-                }
+                if (adminLogin())
+                    adminMenu();
 
                 break;
-            }
 
-            case 3:
-            {
-                int eventId;
+            case 0:
+                saveStudents();
+                saveRegistrations();
+                saveWaitingQueues();
 
-                cout << "\n=== EVENT DETAILS ===\n";
-                cout << "Enter Event ID: ";
-                cin >> eventId;
-
-                bool found = false;
-
-                for (int i = 0; i < events.size(); i++)
-                {
-                    if (events[i].getEventId() == eventId)
-                    {
-                        found = true;
-
-                        cout << "\nEvent ID        : "
-                             << events[i].getEventId() << endl;
-
-                        cout << "Event Name      : "
-                             << events[i].getEventName() << endl;
-
-                        cout << "Category        : "
-                             << events[i].getCategory() << endl;
-
-                        cout << "Date            : "
-                             << events[i].getDate() << endl;
-
-                        cout << "Venue           : "
-                             << events[i].getVenue() << endl;
-
-                        cout << "Registration Fee: Rs. "
-                             << events[i].getFee() << endl;
-
-                        cout << "Available Seats : "
-                             << events[i].getAvailableSeats()
-                             << "/"
-                             << events[i].getTotalSeats()
-                             << endl;
-
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    cout << "\nInvalid Event ID.\n";
-                }
-
+                cout << "Data saved successfully.\n";
+                cout << "Thank you for using the platform!\n";
                 break;
-            }
-
-            case 4:
-            {
-                int eventId;
-
-                cout << "\n=== REGISTER FOR EVENT ===\n";
-                cout << "Enter Event ID: ";
-                cin >> eventId;
-
-                bool found = false;
-                bool alreadyRegistered = false;
-
-                for (int i = 0; i < registeredEvents.size(); i++)
-                {
-                    if (registeredEvents[i] == eventId)
-                    {
-                        alreadyRegistered = true;
-                        break;
-                    }
-                }
-
-                if (alreadyRegistered)
-                {
-                    cout << "\nYou are already registered "
-                         << "for this event.\n";
-
-                    break;
-                }
-
-                for (int i = 0; i < events.size(); i++)
-                {
-                    if (events[i].getEventId() == eventId)
-                    {
-                        found = true;
-
-                        if (events[i].registerStudent())
-                        {
-                            registeredEvents.push_back(eventId);
-
-                            allRegistrations.push_back(
-                                {student.getRollNumber(), eventId}
-                            );
-
-                            ofstream saveFile(
-                                "src/data/registrations.txt"
-                            );
-
-                            for (int j = 0;
-                                 j < allRegistrations.size();
-                                 j++)
-                            {
-                                saveFile
-                                    << allRegistrations[j].first
-                                    << "|||"
-                                    << allRegistrations[j].second
-                                    << "\n";
-                            }
-
-                            saveFile.close();
-
-                            cout << "\nRegistration successful!\n";
-
-                            cout << "Event: "
-                                 << events[i].getEventName()
-                                 << endl;
-
-                            cout << "Available Seats: "
-                                 << events[i].getAvailableSeats()
-                                 << "/"
-                                 << events[i].getTotalSeats()
-                                 << endl;
-                        }
-                        else
-                        {
-                            cout << "\nSorry, no seats are available.\n";
-                        }
-
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    cout << "\nInvalid Event ID.\n";
-                }
-
-                break;
-            }
-
-            case 5:
-            {
-                if (registeredEvents.empty())
-                {
-                    cout << "\nYou have no registrations to cancel.\n";
-                    break;
-                }
-
-                cout << "\n=== CANCEL REGISTRATION ===\n";
-
-                int selectedEventId = -1;
-
-                if (registeredEvents.size() == 1)
-                {
-                    selectedEventId = registeredEvents[0];
-
-                    for (int i = 0; i < events.size(); i++)
-                    {
-                        if (events[i].getEventId() ==
-                            selectedEventId)
-                        {
-                            cout << "\nYour registration:\n";
-
-                            cout << "Event Name: "
-                                 << events[i].getEventName()
-                                 << endl;
-
-                            break;
-                        }
-                    }
-
-                    char confirm;
-
-                    cout << "\nCancel this registration? (Y/N): ";
-                    cin >> confirm;
-
-                    if (confirm != 'Y' &&
-                        confirm != 'y')
-                    {
-                        cout << "\nCancellation cancelled.\n";
-                        break;
-                    }
-                }
-                else
-                {
-                    cout << "\nYour registered events:\n";
-
-                    for (int i = 0;
-                         i < registeredEvents.size();
-                         i++)
-                    {
-                        for (int j = 0;
-                             j < events.size();
-                             j++)
-                        {
-                            if (events[j].getEventId() ==
-                                registeredEvents[i])
-                            {
-                                cout << i + 1 << ". "
-                                     << events[j].getEventName()
-                                     << endl;
-                            }
-                        }
-                    }
-
-                    int selectedNumber;
-
-                    cout << "\nEnter event number to cancel: ";
-                    cin >> selectedNumber;
-
-                    if (selectedNumber < 1 ||
-                        selectedNumber >
-                        registeredEvents.size())
-                    {
-                        cout << "\nInvalid choice.\n";
-                        break;
-                    }
-
-                    selectedEventId =
-                        registeredEvents[selectedNumber - 1];
-                }
-
-                for (int i = 0; i < events.size(); i++)
-                {
-                    if (events[i].getEventId() ==
-                        selectedEventId)
-                    {
-                        events[i].cancelRegistration();
-
-                        cout << "\nRegistration cancelled successfully.\n";
-
-                        cout << "Event: "
-                             << events[i].getEventName()
-                             << endl;
-
-                        break;
-                    }
-                }
-
-                for (int i = 0;
-                     i < registeredEvents.size();
-                     i++)
-                {
-                    if (registeredEvents[i] ==
-                        selectedEventId)
-                    {
-                        registeredEvents.erase(
-                            registeredEvents.begin() + i
-                        );
-
-                        break;
-                    }
-                }
-
-                for (int i = 0;
-                     i < allRegistrations.size();
-                     i++)
-                {
-                    if (allRegistrations[i].first ==
-                            student.getRollNumber() &&
-                        allRegistrations[i].second ==
-                            selectedEventId)
-                    {
-                        allRegistrations.erase(
-                            allRegistrations.begin() + i
-                        );
-
-                        break;
-                    }
-                }
-
-                ofstream saveFile(
-                    "src/data/registrations.txt"
-                );
-
-                for (int i = 0;
-                     i < allRegistrations.size();
-                     i++)
-                {
-                    saveFile
-                        << allRegistrations[i].first
-                        << "|||"
-                        << allRegistrations[i].second
-                        << "\n";
-                }
-
-                saveFile.close();
-
-                break;
-            }
-
-            case 6:
-            {
-                cout << "\n=== MY REGISTRATIONS ===\n";
-
-                if (registeredEvents.empty())
-                {
-                    cout << "\nYou have not registered "
-                         << "for any event.\n";
-
-                    break;
-                }
-
-                for (int i = 0;
-                     i < registeredEvents.size();
-                     i++)
-                {
-                    for (int j = 0;
-                         j < events.size();
-                         j++)
-                    {
-                        if (events[j].getEventId() ==
-                            registeredEvents[i])
-                        {
-                            cout << "\nEvent ID   : "
-                                 << events[j].getEventId()
-                                 << endl;
-
-                            cout << "Event Name : "
-                                 << events[j].getEventName()
-                                 << endl;
-
-                            cout << "Category   : "
-                                 << events[j].getCategory()
-                                 << endl;
-
-                            cout << "Date       : "
-                                 << events[j].getDate()
-                                 << endl;
-
-                            cout << "Venue      : "
-                                 << events[j].getVenue()
-                                 << endl;
-
-                            cout << "Status     : Registered\n";
-                        }
-                    }
-                }
-
-                break;
-            }
-
-            case 7:
-            {
-                cout << "\n--- My Profile ---\n";
-
-                cout << "Name        : "
-                     << student.getName() << endl;
-
-                cout << "Semester    : "
-                     << student.getSemester() << endl;
-
-                cout << "Roll Number : "
-                     << student.getRollNumber() << endl;
-
-                break;
-            }
-
-            case 8:
-            {
-                cout << "\nLogged out successfully.\n";
-                break;
-            }
 
             default:
-            {
-                cout << "\nInvalid choice.\n";
-            }
+                cout << "Invalid choice. Try again.\n";
         }
 
-    } while (choice != 8);
+    } while (choice != 0);
 
     return 0;
 }

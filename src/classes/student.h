@@ -1,3 +1,4 @@
+
 #ifndef STUDENT_H
 #define STUDENT_H
 
@@ -16,13 +17,37 @@ private:
     bool firstLogin;
 
 public:
+    Student(string roll, string studentName, string studentCourse,
+            int sem, string studentPassword, bool first)
+    {
+        rollNumber = roll;
+        name = studentName;
+        course = studentCourse;
+        semester = sem;
+
+        if (studentPassword.empty() || studentPassword == "0")
+        {
+            password = "student@123";
+            firstLogin = true;
+        }
+        else
+        {
+            password = studentPassword;
+            firstLogin = first;
+        }
+
+        if (name.empty() || course.empty() || semester <= 0)
+            firstLogin = true;
+    }
+
+
     Student(string roll, string studentName, int sem,
             string studentPassword, bool first)
     {
         rollNumber = roll;
         name = studentName;
-        semester = sem;
         course = "";
+        semester = sem;
 
         if (studentPassword.empty() || studentPassword == "0")
         {
@@ -39,38 +64,14 @@ public:
             firstLogin = true;
     }
 
-    string getRollNumber() const
-    {
-        return rollNumber;
-    }
+    string getRollNumber() const { return rollNumber; }
+    string getName() const { return name; }
+    string getCourse() const { return course; }
+    int getSemester() const { return semester; }
+    string getPassword() const { return password; }
+    bool isFirstLogin() const { return firstLogin; }
 
-    string getName() const
-    {
-        return name;
-    }
-
-    string getCourse() const
-    {
-        return course;
-    }
-
-    int getSemester() const
-    {
-        return semester;
-    }
-
-    string getPassword() const
-    {
-        return password;
-    }
-
-    bool isFirstLogin() const
-    {
-        return firstLogin;
-    }
-
-    bool login(string enteredRollNumber,
-               string enteredPassword) const
+    bool login(string enteredRollNumber, string enteredPassword) const
     {
         return enteredRollNumber == rollNumber &&
                enteredPassword == password;

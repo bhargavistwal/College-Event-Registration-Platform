@@ -1,6 +1,8 @@
+
 #ifndef EVENT_H
 #define EVENT_H
 
+#include <iostream>
 #include <string>
 using namespace std;
 
@@ -15,12 +17,17 @@ private:
     int fee;
     int totalSeats;
     int availableSeats;
+    string parentEvent;
+    string eventType;
+    bool openAccess;
 
 public:
-
     Event(int id, string name, string eventCategory,
           string eventDate, string eventVenue,
-          int eventFee, int seats)
+          int eventFee, int seats,
+          string parent = "None",
+          string type = "Individual",
+          bool open = false)
     {
         eventId = id;
         eventName = name;
@@ -30,50 +37,77 @@ public:
         fee = eventFee;
         totalSeats = seats;
         availableSeats = seats;
+        parentEvent = parent;
+        eventType = type;
+        openAccess = open;
     }
 
-    int getEventId()
+    int getEventId() const
     {
         return eventId;
     }
 
-    string getEventName()
+    string getEventName() const
     {
         return eventName;
     }
 
-    string getCategory()
+    string getCategory() const
     {
         return category;
     }
 
-    string getDate()
+    string getDate() const
     {
         return date;
     }
 
-    string getVenue()
+    string getVenue() const
     {
         return venue;
     }
 
-    int getFee()
+    int getFee() const
     {
         return fee;
     }
 
-    int getTotalSeats()
+    int getTotalSeats() const
     {
         return totalSeats;
     }
 
-    int getAvailableSeats()
+    int getAvailableSeats() const
     {
         return availableSeats;
     }
 
+    string getParentEvent() const
+    {
+        return parentEvent;
+    }
+
+    string getEventType() const
+    {
+        return eventType;
+    }
+
+    bool isOpenAccess() const
+    {
+        return openAccess;
+    }
+
+    void setAvailableSeats(int seats)
+    {
+        if (seats >= 0 && seats <= totalSeats)
+            availableSeats = seats;
+    }
+
     bool registerStudent()
     {
+        if (openAccess)
+            return false;
+
         if (availableSeats > 0)
         {
             availableSeats--;
@@ -86,9 +120,24 @@ public:
     void cancelRegistration()
     {
         if (availableSeats < totalSeats)
-        {
             availableSeats++;
-        }
+    }
+
+    void cancelStudent()
+    {
+        cancelRegistration();
+    }
+
+    void display() const
+    {
+        cout << "\nEvent ID: " << eventId;
+        cout << "\nEvent Name: " << eventName;
+        cout << "\nCategory: " << category;
+        cout << "\nDate: " << date;
+        cout << "\nVenue: " << venue;
+        cout << "\nFee: " << fee;
+        cout << "\nTotal Seats: " << totalSeats;
+        cout << "\nAvailable Seats: " << availableSeats << endl;
     }
 };
 

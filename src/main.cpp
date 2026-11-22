@@ -5,73 +5,12 @@
 #include <algorithm>
 #include <cctype>
 #include <limits>
+
 using namespace std;
 
 #include "classes/student.h"
+#include "classes/event.h"
 #include "dsa/EventQueue.h"
-
-
-class Event
-{
-private:
-    int eventId;
-    string eventName;
-    string category;
-    string date;
-    string venue;
-    int totalSeats;
-    int availableSeats;
-
-public:
-    Event(int id, string name, string cat, string d,
-          string v, int total, int available)
-    {
-        eventId = id;
-        eventName = name;
-        category = cat;
-        date = d;
-        venue = v;
-        totalSeats = total;
-        availableSeats = available;
-    }
-
-    int getEventId() const { return eventId; }
-    string getEventName() const { return eventName; }
-    string getCategory() const { return category; }
-    string getDate() const { return date; }
-    string getVenue() const { return venue; }
-    int getTotalSeats() const { return totalSeats; }
-    int getAvailableSeats() const { return availableSeats; }
-
-    void setAvailableSeats(int seats)
-    {
-        if (seats >= 0 && seats <= totalSeats)
-            availableSeats = seats;
-    }
-
-    void registerStudent()
-    {
-        if (availableSeats > 0)
-            availableSeats--;
-    }
-
-    void cancelStudent()
-    {
-        if (availableSeats < totalSeats)
-            availableSeats++;
-    }
-
-    void display() const
-    {
-        cout << "\nEvent ID: " << eventId;
-        cout << "\nEvent Name: " << eventName;
-        cout << "\nCategory: " << category;
-        cout << "\nDate: " << date;
-        cout << "\nVenue: " << venue;
-        cout << "\nTotal Seats: " << totalSeats;
-        cout << "\nAvailable Seats: " << availableSeats << endl;
-    }
-};
 
 vector<Student> students;
 vector<Event> eventList;
@@ -120,10 +59,13 @@ void saveStudents()
     {
         file << st.getRollNumber() << "|||"
              << st.getName() << "|||"
+             << st.getCourse() << "|||"
              << st.getSemester() << "|||"
              << st.getPassword() << "|||"
              << (st.isFirstLogin() ? "1" : "0") << '\n';
     }
+
+    file.close();
 }
 
 void loadStudents()
@@ -137,6 +79,8 @@ void loadStudents()
         return;
     }
 
+    students.clear();
+
     string line;
 
     while (getline(file, line))
@@ -149,27 +93,44 @@ void loadStudents()
 
         vector<string> data = split(line);
 
-        if (data.size() != 5)
-        {
-            cout << "Skipping invalid student record.\n";
-            continue;
-        }
-
         try
         {
-            students.emplace_back(
-                data[0],
-                data[1],
-                stoi(data[2]),
-                data[3],
-                data[4] == "1"
-            );
+            if (data.size() == 6)
+            {
+                students.emplace_back(
+                    data[0],
+                    data[1],
+                    data[2],
+                    stoi(data[3]),
+                    data[4],
+                    data[5] == "1"
+                );
+            }
+            else if (data.size() == 5)
+            {
+                students.emplace_back(
+                    data[0],
+                    data[1],
+                    "",
+                    stoi(data[2]),
+                    data[3],
+                    data[4] == "1"
+                );
+            }
+            else
+            {
+                cout << "Skipping invalid student record.\n";
+            }
         }
         catch (...)
         {
             cout << "Skipping invalid student record.\n";
         }
     }
+
+    file.close();
+
+    cout << "Student records loaded: " << students.size() << '\n';
 }
 
 void loadRegistrations()
@@ -178,6 +139,8 @@ void loadRegistrations()
 
     if (!file)
         return;
+
+    allRegistrations.clear();
 
     string line;
 
@@ -205,6 +168,8 @@ void loadRegistrations()
             cout << "Skipping invalid registration record.\n";
         }
     }
+
+    file.close();
 }
 
 void saveRegistrations()
@@ -222,6 +187,8 @@ void saveRegistrations()
         file << record.first << "|||"
              << record.second << '\n';
     }
+
+    file.close();
 }
 
 void saveWaitingQueues()
@@ -243,6 +210,31 @@ void saveWaitingQueues()
         for (const string& roll : waitingQueues[i].toVector())
             file << roll << "|||" << eventId << '\n';
     }
+
+    file.close();
+}
+
+Event* findEvent(int id)
+{
+    for (auto& ev : eventList)
+    {
+        if (ev.getEventId() == id)
+            return &ev;
+    }
+
+    return nullptr;
+}
+
+bool isRegistered(const string& roll, int eventId)
+{
+    for (const auto& record : allRegistrations)
+    {
+        if (record.first == roll &&
+            record.second == eventId)
+            return true;
+    }
+
+    return false;
 }
 
 void loadEvents()
@@ -250,29 +242,379 @@ void loadEvents()
     eventList.clear();
 
     eventList.emplace_back(
-        1, "Tech Fest 2026", "Technical",
-        "15 October 2026", "Main Auditorium", 200, 200
+        1, "EMERGE", "Orientation",
+        "24-26 November 2026", "B.Tech Auditorium",
+        0, 0, "None", "Festival", true
     );
 
     eventList.emplace_back(
-        2, "Code Hackathon", "Coding",
-        "20 October 2026", "Lab 3", 100, 100
+        2, "Orientation Workshops", "Academic",
+        "24 November 2026", "B.Tech Auditorium",
+        0, 100, "EMERGE", "Workshop", false
     );
 
     eventList.emplace_back(
-        3, "Basketball Tournament", "Sports",
-        "25 October 2026", "College Ground", 50, 50
+        3, "Ice Breaking Activities", "Cultural",
+        "25 November 2026", "Main Ground",
+        0, 200, "EMERGE", "Activity", false
     );
 
     eventList.emplace_back(
-        4, "Cultural Night", "Cultural",
-        "30 October 2026", "Open Air Theatre", 150, 150
+        4, "Graphathon / Graph-E-Thon", "Technical",
+        "5-6 December 2026", "Computer Labs",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        5, "Coding Hackathon", "Coding",
+        "5 December 2026", "Computer Lab 3",
+        0, 100, "Graphathon", "Competition", false
+    );
+
+    eventList.emplace_back(
+        6, "AI and ML Innovation Challenge", "Artificial Intelligence",
+        "6 December 2026", "Computer Lab 3",
+        0, 80, "Graphathon", "Competition", false
+    );
+
+    eventList.emplace_back(
+        7, "DICCT & AWS Student Community Day", "Technical",
+        "15-16 December 2026", "B.Tech Auditorium",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        8, "DICCT Technical Conference", "Computing",
+        "15 December 2026", "B.Tech Auditorium",
+        0, 150, "DICCT & AWS Student Community Day",
+        "Conference", false
+    );
+
+    eventList.emplace_back(
+        9, "AWS Cloud Community Sessions", "Cloud Computing",
+        "16 December 2026", "B.Tech Auditorium",
+        0, 120, "DICCT & AWS Student Community Day",
+        "Workshop", false
+    );
+
+    eventList.emplace_back(
+        10, "Global Village Culinary Fest", "Cultural",
+        "21-22 January 2027", "Main Ground",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        11, "Global Cuisine Showcase", "Culinary",
+        "21 January 2027", "Main Ground",
+        0, 100, "Global Village Culinary Fest",
+        "Competition", false
+    );
+
+    eventList.emplace_back(
+        12, "International Cultural Showcase", "Cultural",
+        "22 January 2027", "Main Ground",
+        0, 150, "Global Village Culinary Fest",
+        "Performance", false
+    );
+
+    eventList.emplace_back(
+        13, "Annual Athletics Meet", "Sports",
+        "11-17 January 2027", "Main Ground",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        14, "Arm Wrestling", "Sports",
+        "11 January 2027", "Main Ground",
+        0, 50, "Annual Athletics Meet",
+        "Individual Competition", false
+    );
+
+    eventList.emplace_back(
+        15, "100m Race", "Athletics",
+        "12 January 2027", "Main Ground",
+        0, 100, "Annual Athletics Meet",
+        "Individual Competition", false
+    );
+
+    eventList.emplace_back(
+        16, "400m Race", "Athletics",
+        "13 January 2027", "Main Ground",
+        0, 80, "Annual Athletics Meet",
+        "Individual Competition", false
+    );
+
+    eventList.emplace_back(
+        17, "800m Race", "Athletics",
+        "14 January 2027", "Main Ground",
+        0, 80, "Annual Athletics Meet",
+        "Individual Competition", false
+    );
+
+    eventList.emplace_back(
+        18, "Shot Put", "Athletics",
+        "15 January 2027", "Main Ground",
+        0, 50, "Annual Athletics Meet",
+        "Individual Competition", false
+    );
+
+    eventList.emplace_back(
+        19, "Javelin Throw", "Athletics",
+        "16 January 2027", "Main Ground",
+        0, 50, "Annual Athletics Meet",
+        "Individual Competition", false
+    );
+
+    eventList.emplace_back(
+        20, "Accolade", "Cultural and Technical",
+        "10-11 February 2027", "Main Ground",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        21, "Inter-Club Artistic Performances", "Cultural",
+        "10 February 2027", "Main Ground",
+        0, 150, "Accolade", "Competition", false
+    );
+
+    eventList.emplace_back(
+        22, "Inter-Club Technical Showcase", "Technical",
+        "11 February 2027", "B.Tech Auditorium",
+        0, 100, "Accolade", "Exhibition", false
+    );
+
+    eventList.emplace_back(
+        23, "Psych Express", "Psychology",
+        "3-5 March 2027", "CSIT Auditorium",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        24, "Interactive Psychology Booths", "Psychology",
+        "3 March 2027", "CSIT Auditorium",
+        0, 100, "Psych Express", "Activity", false
+    );
+
+    eventList.emplace_back(
+        25, "Psychology Interactive Activities", "Psychology",
+        "4 March 2027", "CSIT Auditorium",
+        0, 100, "Psych Express", "Activity", false
+    );
+
+    eventList.emplace_back(
+        26, "Cultural Performances", "Cultural",
+        "5 March 2027", "CSIT Auditorium",
+        0, 150, "Psych Express", "Performance", false
+    );
+
+    eventList.emplace_back(
+        27, "BIOCOM & Academic Conferences", "Academic",
+        "18-21 March 2027", "B.Tech Auditorium",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        28, "Computational Biology Symposium", "Biology",
+        "18 March 2027", "B.Tech Auditorium",
+        0, 120, "BIOCOM & Academic Conferences",
+        "Conference", false
+    );
+
+    eventList.emplace_back(
+        29, "Sustainable Food Ecosystems Conference", "Research",
+        "19 March 2027", "B.Tech Auditorium",
+        0, 120, "BIOCOM & Academic Conferences",
+        "Conference", false
+    );
+
+    eventList.emplace_back(
+        30, "AI and Data Science Conference", "Artificial Intelligence",
+        "20 March 2027", "B.Tech Auditorium",
+        0, 150, "BIOCOM & Academic Conferences",
+        "Conference", false
+    );
+
+    eventList.emplace_back(
+        31, "Microbiology Conference", "Biology",
+        "21 March 2027", "B.Tech Auditorium",
+        0, 120, "BIOCOM & Academic Conferences",
+        "Conference", false
+    );
+
+    eventList.emplace_back(
+        32, "GRAFEST 2027", "Tech and Cultural",
+        "15-18 April 2027", "Main Ground",
+        0, 0, "None", "Festival", true
+    );
+
+    eventList.emplace_back(
+        33, "Grafest Opening Ceremony", "Ceremony",
+        "15 April 2027", "Main Ground",
+        0, 0, "GRAFEST 2027", "Open Access", true
+    );
+
+    eventList.emplace_back(
+        34, "Coding Hackathon", "Coding",
+        "15 April 2027", "B.Tech Auditorium",
+        0, 100, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        35, "Capture The Flag (CTF)", "Cybersecurity",
+        "15 April 2027", "Computer Labs",
+        0, 80, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        36, "AI and ML Model Competition", "Artificial Intelligence",
+        "15 April 2027", "Computer Labs",
+        0, 80, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        37, "Robotics Competition", "Robotics",
+        "15 April 2027", "B.Tech Auditorium",
+        0, 60, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        38, "Working Prototype Exhibition", "Engineering",
+        "15 April 2027", "B.Tech Auditorium",
+        0, 100, "GRAFEST 2027", "Exhibition", false
+    );
+
+    eventList.emplace_back(
+        39, "Bridge Design Competition", "Civil Engineering",
+        "15 April 2027", "B.Tech Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        40, "Technical Workshops and Seminars", "Technical",
+        "15 April 2027", "B.Tech Auditorium",
+        0, 100, "GRAFEST 2027", "Workshop", false
+    );
+
+    eventList.emplace_back(
+        41, "Reverse Shark Tank", "Entrepreneurship",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        42, "Business Trivia", "Management",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 80, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        43, "Corporate Quiz", "Management",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 80, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        44, "Parliamentary Debate", "Literary",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        45, "Speech Competition", "Literary",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        46, "Essay Writing Competition", "Literary",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 60, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        47, "General Quiz", "Literary",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 80, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        48, "Chef Competition", "Culinary",
+        "16 April 2027", "Main Ground",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        49, "Food and Eco-Packaging Showcase", "Management",
+        "16 April 2027", "Main Ground",
+        0, 80, "GRAFEST 2027", "Exhibition", false
+    );
+
+    eventList.emplace_back(
+        50, "Solo Dance", "Cultural",
+        "16 April 2027", "CSIT Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        51, "Group Dance", "Cultural",
+        "16 April 2027", "CSIT Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        52, "Live Band Showcase", "Music",
+        "16 April 2027", "Main Ground",
+        0, 50, "GRAFEST 2027", "Performance", false
+    );
+
+    eventList.emplace_back(
+        53, "Solo Instrumental", "Music",
+        "16 April 2027", "CSIT Auditorium",
+        0, 50, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        54, "Nukkad Natak", "Performing Arts",
+        "16 April 2027", "Main Ground",
+        0, 50, "GRAFEST 2027", "Performance", false
+    );
+
+    eventList.emplace_back(
+        55, "Painting Competition", "Fine Arts",
+        "16 April 2027", "CSIT Auditorium",
+        0, 60, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        56, "Photography Competition", "Fine Arts",
+        "16 April 2027", "CSIT Auditorium",
+        0, 60, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        57, "E-Sports Competition", "Gaming",
+        "16 April 2027", "B.Tech Auditorium",
+        0, 100, "GRAFEST 2027", "Competition", false
+    );
+
+    eventList.emplace_back(
+        58, "Grafest DJ Night", "Entertainment",
+        "17 April 2027", "Main Ground",
+        0, 0, "GRAFEST 2027", "Open Access", true
+    );
+
+    eventList.emplace_back(
+        59, "Grafest Celebrity Night", "Entertainment",
+        "18 April 2027", "Main Ground",
+        0, 0, "GRAFEST 2027", "Open Access", true
     );
 
     waitingQueues.clear();
 
     for (size_t i = 0; i < eventList.size(); i++)
+    {
         waitingQueues.emplace_back();
+    }
 
     for (const auto& record : allRegistrations)
     {
@@ -286,8 +628,6 @@ void loadEvents()
         }
     }
 }
-
-bool isRegistered(const string& roll, int eventId);
 
 void loadWaitingQueues()
 {
@@ -323,7 +663,9 @@ void loadWaitingQueues()
             {
                 if (eventList[i].getEventId() == eventId)
                 {
-                    waitingQueues[i].enqueue(roll, false);
+                    if (!waitingQueues[i].contains(roll))
+                        waitingQueues[i].enqueue(roll, false);
+
                     break;
                 }
             }
@@ -333,29 +675,8 @@ void loadWaitingQueues()
             cout << "Skipping invalid waiting-list record.\n";
         }
     }
-}
 
-Event* findEvent(int id)
-{
-    for (auto& ev : eventList)
-    {
-        if (ev.getEventId() == id)
-            return &ev;
-    }
-
-    return nullptr;
-}
-
-bool isRegistered(const string& roll, int eventId)
-{
-    for (const auto& record : allRegistrations)
-    {
-        if (record.first == roll &&
-            record.second == eventId)
-            return true;
-    }
-
-    return false;
+    file.close();
 }
 
 Student* login()
@@ -403,6 +724,58 @@ bool adminLogin()
     return false;
 }
 
+void completeStudentProfile(Student& st)
+{
+    if (!st.isFirstLogin())
+        return;
+
+    string name, course;
+    int semester;
+
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    cout << "\n===== COMPLETE YOUR STUDENT PROFILE =====\n";
+
+    cout << "Enter your full name: ";
+    getline(cin, name);
+
+    while (name.empty())
+    {
+        cout << "Name cannot be empty. Enter again: ";
+        getline(cin, name);
+    }
+
+    cout << "Enter your course: ";
+    getline(cin, course);
+
+    while (course.empty())
+    {
+        cout << "Course cannot be empty. Enter again: ";
+        getline(cin, course);
+    }
+
+    cout << "Enter your semester: ";
+
+    while (!(cin >> semester) || semester < 1 || semester > 8)
+    {
+        cout << "Enter a valid semester (1-8): ";
+
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    st.setName(name);
+    st.setCourse(course);
+    st.setSemester(semester);
+    st.completeFirstLogin();
+
+    saveStudents();
+
+    cout << "\nProfile completed successfully!\n";
+}
+
 void displayAllEvents()
 {
     cout << "\n========== ALL EVENTS ==========\n";
@@ -415,19 +788,16 @@ void displayAvailableEvents()
 {
     cout << "\n========== AVAILABLE EVENTS ==========\n";
 
-    for (const auto& ev : eventList)
+    for (size_t i = 0; i < eventList.size(); ++i)
     {
-        cout << "\nEvent ID: " << ev.getEventId()
-             << "\nEvent Name: " << ev.getEventName()
-             << "\nCategory: " << ev.getCategory()
-             << "\nDate: " << ev.getDate()
-             << "\nAvailable Seats: " << ev.getAvailableSeats()
+        cout << "\nEvent ID: " << eventList[i].getEventId()
+             << "\nEvent Name: " << eventList[i].getEventName()
+             << "\nCategory: " << eventList[i].getCategory()
+             << "\nDate: " << eventList[i].getDate()
+             << "\nAvailable Seats: "
+             << eventList[i].getAvailableSeats()
              << "\nWaiting Students: "
-             << waitingQueues[
-                    static_cast<size_t>(
-                        &ev - eventList.data()
-                    )
-                ].toVector().size()
+             << waitingQueues[i].toVector().size()
              << '\n';
     }
 }
@@ -465,11 +835,20 @@ void sortEvents()
     cout << "1. Sort by Event Name\n";
     cout << "2. Sort by Available Seats (Highest First)\n";
     cout << "Enter your choice: ";
-    cin >> choice;
+
+    if (!(cin >> choice))
+    {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Invalid input.\n";
+        return;
+    }
+
+    vector<Event> sortedEvents = eventList;
 
     if (choice == 1)
     {
-        sort(eventList.begin(), eventList.end(),
+        sort(sortedEvents.begin(), sortedEvents.end(),
              [](const Event& a, const Event& b)
              {
                  return a.getEventName() < b.getEventName();
@@ -479,7 +858,7 @@ void sortEvents()
     }
     else if (choice == 2)
     {
-        sort(eventList.begin(), eventList.end(),
+        sort(sortedEvents.begin(), sortedEvents.end(),
              [](const Event& a, const Event& b)
              {
                  return a.getAvailableSeats() >
@@ -494,7 +873,8 @@ void sortEvents()
         return;
     }
 
-    displayAllEvents();
+    for (const auto& ev : sortedEvents)
+        ev.display();
 }
 
 void displayStudentRegistrations(const string& roll)
@@ -545,6 +925,12 @@ void registerEvent(Student& st)
         return;
     }
 
+    if (ev->isOpenAccess())
+    {
+        cout << "This event is open access. Registration is not required.\n";
+        return;
+    }
+
     string roll = st.getRollNumber();
 
     if (isRegistered(roll, eventId))
@@ -574,14 +960,19 @@ void registerEvent(Student& st)
 
     if (ev->getAvailableSeats() > 0 && queue.isEmpty())
     {
-        ev->registerStudent();
+        if (ev->registerStudent())
+        {
+            allRegistrations.push_back({roll, eventId});
 
-        allRegistrations.push_back({roll, eventId});
+            saveRegistrations();
 
-        saveRegistrations();
-
-        cout << "\nRegistration successful!\n";
-        cout << "Event: " << ev->getEventName() << '\n';
+            cout << "\nRegistration successful!\n";
+            cout << "Event: " << ev->getEventName() << '\n';
+        }
+        else
+        {
+            cout << "Registration could not be completed.\n";
+        }
     }
     else
     {
@@ -606,9 +997,13 @@ void registerEvent(Student& st)
                 cout << "You have been added to the waiting list.\n";
             }
         }
-        else
+        else if (choice == 0)
         {
             cout << "Registration cancelled.\n";
+        }
+        else
+        {
+            cout << "Invalid choice.\n";
         }
     }
 }
@@ -730,6 +1125,7 @@ void displayAllStudents()
     {
         cout << "\nRoll Number: " << st.getRollNumber()
              << "\nName: " << st.getName()
+             << "\nCourse: " << st.getCourse()
              << "\nSemester: " << st.getSemester()
              << '\n';
     }
@@ -790,7 +1186,6 @@ void changeStudentPassword(Student& st)
     }
 
     st.changePassword(newPassword);
-    st.completeFirstLogin();
 
     saveStudents();
 
@@ -799,10 +1194,14 @@ void changeStudentPassword(Student& st)
 
 void studentMenu(Student& st)
 {
+    completeStudentProfile(st);
+
     int choice;
 
     do
     {
+        choice = -1;
+
         cout << "\n========== STUDENT MENU ==========\n";
         cout << "Welcome, " << st.getName() << '\n';
         cout << "1. View All Events\n";
@@ -875,6 +1274,8 @@ void adminMenu()
 
     do
     {
+        choice = -1;
+
         cout << "\n========== ADMIN MENU ==========\n";
         cout << "1. View All Events\n";
         cout << "2. View Available Events\n";
@@ -920,7 +1321,7 @@ void adminMenu()
                 saveStudents();
                 saveRegistrations();
                 saveWaitingQueues();
-                cout << "All data saved successfully.\n";
+                cout << "Save operation completed. Check for file errors above.\n";
                 break;
 
             case 7:
@@ -936,7 +1337,7 @@ void adminMenu()
         }
 
     } while (choice != 0);
-} 
+}
 
 int main()
 {
@@ -953,6 +1354,8 @@ int main()
 
     do
     {
+        choice = -1;
+
         cout << "\n========== MAIN MENU ==========\n";
         cout << "1. Student Login\n";
         cout << "2. Admin Login\n";
@@ -990,7 +1393,7 @@ int main()
                 saveRegistrations();
                 saveWaitingQueues();
 
-                cout << "Data saved successfully.\n";
+                cout << "Data saved.\n";
                 cout << "Thank you for using the platform!\n";
                 break;
 
